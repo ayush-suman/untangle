@@ -9,13 +9,16 @@
 
   export let data: {
     initial:
-      | { ok: false; error: string; tags: string[]; activeTag: string | null; messages: ChatMessage[] }
-      | { ok: true; tags: string[]; activeTag: string | null; messages: ChatMessage[] };
+      | { ok: false; error: string; tags: string[]; activeTag: string | null; messages: ChatMessage[], createdAt: Date, response?: ChatMessage, responseAt?: Date }
+      | { ok: true; tags: string[]; activeTag: string | null; messages: ChatMessage[], createdAt: Date, response?: ChatMessage, responseAt?: Date };
   };
 
-  let tags: string[] = data.initial.tags ?? [];
-  let activeTag: string | null = data.initial.activeTag ?? null;
-  let messages: ChatMessage[] = (data.initial as any).messages ?? [];
+  let tags: string[] = data.initial.tags;
+  let activeTag = data.initial.activeTag;
+  let messages: ChatMessage[] = data.initial.messages;
+  let createdAt: Date = data.initial.createdAt;
+  let response: ChatMessage | undefined = data.initial.response;
+  let responseAt: Date | undefined = data.initial.responseAt;
   let loadError: string | null = data.initial.ok ? null : (data.initial as any).error ?? "Failed to load";
 
   async function refreshTagsAndMaybeActive() {
@@ -30,7 +33,6 @@
     loadError = null;
     tags = j.tags ?? [];
 
-    // If current active tag disappeared (server restart), clear selection.
     if (activeTag && !tags.includes(activeTag)) {
       activeTag = null;
       messages = [];
@@ -40,6 +42,21 @@
     // If no active tag, pick the last.
     if (!activeTag && tags.length) {
       await selectTag(tags[tags.length - 1], { updateUrl: true });
+    }
+  }
+
+  async function refreshData() {
+    if (activeTag) {
+      const res = await fetch(`/api/messages?tag=${encodeURIComponent(activeTag)}`);
+      const j = await res.json();
+      if (!j.ok) {
+        return;
+      }
+
+      messages = j.messages ?? [];
+      createdAt = j.createdAt;
+      response = j.response;
+      responseAt = j.responseAt;
     }
   }
 
@@ -57,6 +74,10 @@
     }
 
     messages = j.messages ?? [];
+    createdAt = j.createdAt;
+    response = j.response;
+    responseAt = j.responseAt;
+
 
     // Keep URL in sync for shareable deep links: /?tag=xyz
     if (opts.updateUrl) {
@@ -67,13 +88,16 @@
   // Client-only polling so the UI updates when API is hit externally.
   const POLL_MS = 1500;
   let timer: ReturnType<typeof setInterval> | null = null;
+  let timer2: ReturnType<typeof setInterval> | null = null;
 
   onMount(() => {
     timer = setInterval(refreshTagsAndMaybeActive, POLL_MS);
+    timer2 = setInterval(refreshData, POLL_MS)
   });
 
   onDestroy(() => {
     if (timer) clearInterval(timer);
+    if (timer2) clearInterval(timer2);
   });
 </script>
 
@@ -94,7 +118,7 @@
     {:else if messages.length === 0}
       <div class="hint">No messages for “{activeTag}”.</div>
     {:else}
-      <MessageList {messages} />
+      <MessageList {messages} {createdAt} {response} {responseAt}/>
     {/if}
   </div>
 </div>

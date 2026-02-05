@@ -52,12 +52,12 @@ export async function POST({ request }) {
 
     const messages = validateMessages(body.messages);
 
-    store.push({tag, messages});
-
+    store.push({ tag, messages, createdAt: new Date() });
+    console.log(body)
+    console.log(store)
     return json({
       ok: true,
       tags: Array.from(store.keys()).sort(),
-      activeTag: tag,
       count: messages.length
     }, {
         headers: noStoreHeaders
@@ -80,16 +80,34 @@ export async function GET({ url }) {
 
   if (tag) {
     var messages;
+    var createdAt;
+    var response;
+    var responseAt;
     for (const data of store) {
         if (data.tag === tag) {
             messages = data.messages;
+            createdAt = data.createdAt;
+            response = data.response;
+            responseAt = data.responseAt;
             break;
         }
     }
-    return json({
-      ok: true,
-      messages
-    });
+    if (messages) {
+        return json({
+        ok: true,
+        messages,
+        createdAt,
+        response,
+        responseAt
+        });
+    } else {
+        return json({
+            ok: false,
+            error: "Tag not found"
+        }, {
+            status: 404
+        })
+    }
   }
 
   const messageRecords: Record<string, ChatMessage[]> = {}
@@ -103,4 +121,28 @@ export async function GET({ url }) {
   }, {
         headers: noStoreHeaders
     });
+}
+
+
+export async function PATCH({ request }) {
+    const body = await request.json();
+    console.log(body)
+    console.log(store)
+    const { tag, response } = body;
+    var data = store.findLast(data => data.tag === tag)
+    console.log(data)
+    if (data) {
+      data.response = {"role": "assistant", "message": response };
+      data.responseAt = new Date();
+      return json({
+        ok: true
+      })
+    } else {
+        return json({
+            ok: false,
+            error: "Tag not found"
+        }, {
+            status: 404
+        })
+    }
 }
