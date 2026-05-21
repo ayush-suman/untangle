@@ -248,6 +248,7 @@
     background: #0b0b0c;
     color: #f3f3f3;
     flex-grow: 1;
+    min-width: 0;
   }
 
   .topbar {
