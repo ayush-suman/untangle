@@ -1,13 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from "svelte";
-
-  export let tags: string[] = [];
-  export let activeTag: string | null = null;
-
-  const dispatch = createEventDispatcher<{ select: { tag: string } }>();
-  function pick(tag: string) {
-    dispatch("select", { tag });
-  }
+const { tags, selectedTag, onSelect }: {tags: string[], selectedTag?: string, onSelect: (tag: string) => void} = $props();
 </script>
 
 <div class="tagstrip" aria-label="Tags">
@@ -16,8 +8,8 @@
   {:else}
     {#each tags as t}
       <button
-        class="tag {activeTag === t ? 'tag--active' : ''}"
-        on:click={() => pick(t)}
+        class="tag {selectedTag === t ? 'tag--active' : ''}"
+        onclick={() => onSelect(t)}
         title={t}
       >
         {t}
@@ -33,7 +25,8 @@
     overflow-x: auto;
     overflow-y: hidden;
     white-space: nowrap;
-    padding-bottom: 6px;
+    padding-top: 2px;
+    padding-bottom: 2px;
   }
 
   .tagstrip::-webkit-scrollbar {
@@ -55,6 +48,7 @@
     max-width: 260px;
     text-overflow: ellipsis;
     overflow: hidden;
+    transition: 0.1s;
   }
 
   .tag--active {

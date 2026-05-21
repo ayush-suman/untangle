@@ -1,61 +1,57 @@
-// src/routes/+page.ts
 import type { PageLoad } from "./$types";
 import type { ChatMessage } from "$lib/types";
 
 type LoadOk = {
   ok: true;
-  tags: string[];
-  activeTag: string | null;
-  messages: ChatMessage[];
+  sessions: {
+    id: string,
+    name?: string,
+    description?: string,
+    messages: {
+      id: number,
+      tag: string,
+      messages: ChatMessage[],
+      messagesAt: Date,
+      response?: ChatMessage,
+      responseAt?: Date
+    }[]
+  }[]
 };
 
 type LoadErr = {
   ok: false;
   error: string;
-  tags: string[];
-  activeTag: string | null;
-  messages: ChatMessage[];
 };
 
 export const load: PageLoad = async ({ fetch, url }) => {
-  const initialTag = url.searchParams.get("tag");
+  const sessionID = url.searchParams.get("sessionID");
+  const tag = url.searchParams.get("tag");
+  
+  let route = "/api/messages";
 
-  const res = await fetch("/api/messages");
+  if (sessionID) {
+    route += `?sessionID=${encodeURIComponent(sessionID)}`;
+    if (tag) {
+      route += `&tag=${encodeURIComponent(tag)}`;
+    }
+  }
+  const res = await fetch(route);
   const data = await res.json();
+  
+  let initial: LoadErr | LoadOk;
 
   if (!data?.ok) {
-    const initial: LoadErr = {
+    initial = {
       ok: false,
-      error: data?.error ?? "Failed to load tags",
-      tags: [],
-      activeTag: null,
-      messages: []
+      error: data?.error ?? "Failed to load tags"
     };
-    return { initial };
+  } else {
+    console.log(data.sessions)
+    initial = {
+      ok: true,
+      sessions: data.sessions
+    };
   }
-
-  const tags: string[] = data.tags ?? [];
-
-  const activeTag =
-    initialTag && tags.includes(initialTag)
-      ? initialTag
-      : tags.length
-        ? tags[tags.length - 1]
-        : null;
-
-  let messages: ChatMessage[] = [];
-  if (activeTag) {
-    const mres = await fetch(`/api/messages?tag=${encodeURIComponent(activeTag)}`);
-    const mdata = await mres.json();
-    if (mdata?.ok) messages = (mdata.messages ?? []) as ChatMessage[];
-  }
-
-  const initial: LoadOk = {
-    ok: true,
-    tags,
-    activeTag,
-    messages
-  };
 
   return { initial };
-};
+}

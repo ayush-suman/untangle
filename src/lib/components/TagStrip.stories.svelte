@@ -10,18 +10,18 @@
 
 <Story
   name="Empty"
-  args={{ tags: [], activeTag: null }}
+  args={{ tags: [], selectedTag: undefined }}
 />
 
 <Story
   name="Few Tags"
-  args={{ tags: ["run-001", "run-002", "alpha"], activeTag: "run-002" }}
+  args={{ tags: ["run-001", "run-002", "alpha"], selectedTag: "run-002" }}
 />
 
 <Story
   name="Many Tags (Scrollable)"
   args={{
     tags: Array.from({ length: 30 }, (_, i) => `tag-${String(i + 1).padStart(2, "0")}`),
-    activeTag: "tag-12"
+    selectedTag: "tag-12"
   }}
 />
