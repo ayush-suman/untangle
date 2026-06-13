@@ -18,7 +18,7 @@
   );
 </script>
 
-<div class="panel" transition:fly={{ x: 320, duration: 200 }}>
+<div class="panel" transition:fly={{ x: 620, duration: 200 }}>
   <div class="panel-header">
     <span class="panel-title">{title}</span>
     <button class="close" onclick={onClose} aria-label="Close panel">×</button>
@@ -38,7 +38,7 @@
     top: 0;
     right: 44px;
     bottom: 0;
-    width: 340px;
+    width: 640px;
     z-index: 20;
     display: flex;
     flex-direction: column;
