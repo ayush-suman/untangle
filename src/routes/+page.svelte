@@ -2,6 +2,7 @@
   import TagStrip from "$lib/components/TagStrip.svelte";
   import MessageList from "$lib/components/MessageList.svelte";
   import ErrorBanner from "$lib/components/ErrorBanner.svelte";
+  import SidePanel from "$lib/components/SidePanel.svelte";
   import type { ChatMessage } from "$lib/types";
   import { goto } from "$app/navigation";
   import type { PageData } from "./$types";
@@ -15,10 +16,12 @@
   }>({});
 
   let messageCache: Record<string, Record<string, {
-    messages: ChatMessage[] 
+    messages: ChatMessage[]
     messagesAt: Date
     response?: ChatMessage
     responseAt?: Date
+    formatKeys?: Record<string, unknown>
+    schema?: Record<string, unknown>
   } | null>> = $state({});
 
   let sessions: Array<{
@@ -31,11 +34,22 @@
   let currentSession = $derived(current.sessionID ? sessions.find((s) => s.id === current.sessionID) : null);
 
   let currentMessages: {
-    messages: ChatMessage[], 
+    messages: ChatMessage[],
     messagesAt: Date,
     response?: ChatMessage,
-    responseAt?: Date
+    responseAt?: Date,
+    formatKeys?: Record<string, unknown>,
+    schema?: Record<string, unknown>
   } | null = $state(null);
+
+  let activePanel: "formatKeys" | "schema" | null = $state(null);
+
+  // Close any open panel when switching tag/session so stale data isn't shown.
+  $effect(() => {
+    current.sessionID;
+    current.tag;
+    activePanel = null;
+  });
 
   // let currentSession = $derived(sessions.find((v) => v.id === current?.sessionID));
   // let currentTag = $derived(currentSession?.tags.find((t) => t === current?.tag));
@@ -65,7 +79,9 @@
             messages: tag.messages,
             messagesAt: tag.messagesAt,
             response: tag.response,
-            responseAt: tag.responseAt
+            responseAt: tag.responseAt,
+            formatKeys: tag.formatKeys,
+            schema: tag.schema
           }
         }
       }
@@ -166,13 +182,15 @@
       messageCache[json.id] = {}
     }
 
-    const message = json.messages.find((m: { tag: string; messages: ChatMessage[], messagesAt: Date, response: ChatMessage, responseAt: Date}) => m.tag === tag)
+    const message = json.messages.find((m: { tag: string; messages: ChatMessage[], messagesAt: Date, response: ChatMessage, responseAt: Date, formatKeys?: Record<string, unknown>, schema?: Record<string, unknown>}) => m.tag === tag)
 
     messageCache[json.id][tag] = {
       messages: message.messages,
       messagesAt: message.messagesAt,
       response: message.response,
-      responseAt: message.responseAt
+      responseAt: message.responseAt,
+      formatKeys: message.formatKeys,
+      schema: message.schema
     }
     if (!current.tag) {
       current.tag = tag;
@@ -216,21 +234,54 @@
       {/if}
     </div>
 
-    <div class="content">
-      <ErrorBanner error={loadError} />
+    <div class="body">
+      <div class="content">
+        <ErrorBanner error={loadError} />
 
-      {#if !current.tag}
-        <div class="hint">Select a tag to view messages.</div>
-      {:else if !currentMessages || currentMessages.messages.length === 0}
-        <div class="hint">No messages for “{current.tag}”.</div>
-      {:else}
-        <MessageList 
-          messages={currentMessages.messages} 
-          messagesAt={currentMessages.messagesAt} 
-          response={currentMessages.response} 
-          responseAt={currentMessages.responseAt}
+        {#if !current.tag}
+          <div class="hint">Select a tag to view messages.</div>
+        {:else if !currentMessages || currentMessages.messages.length === 0}
+          <div class="hint">No messages for “{current.tag}”.</div>
+        {:else}
+          <MessageList
+            messages={currentMessages.messages}
+            messagesAt={currentMessages.messagesAt}
+            response={currentMessages.response}
+            responseAt={currentMessages.responseAt}
+          />
+        {/if}
+      </div>
+
+      {#if activePanel === 'formatKeys'}
+        <SidePanel
+          title="Format Keys"
+          data={currentMessages?.formatKeys ?? {}}
+          onClose={() => activePanel = null}
+        />
+      {:else if activePanel === 'schema'}
+        <SidePanel
+          title="Schema"
+          data={currentMessages?.schema}
+          onClose={() => activePanel = null}
         />
       {/if}
+
+      <div class="toolstrip">
+        <button
+          class="tool {activePanel === 'formatKeys' ? 'active' : ''}"
+          disabled={!current.tag}
+          onclick={() => activePanel = activePanel === 'formatKeys' ? null : 'formatKeys'}
+        >
+          Format Keys
+        </button>
+        <button
+          class="tool {activePanel === 'schema' ? 'active' : ''}"
+          disabled={!current.tag || !currentMessages?.schema}
+          onclick={() => activePanel = activePanel === 'schema' ? null : 'schema'}
+        >
+          Schema
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -257,10 +308,58 @@
     background: #111114;
   }
 
+  .body {
+    flex: 1;
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    min-height: 0;
+  }
+
+  .toolstrip {
+    flex-shrink: 0;
+    width: 44px;
+    display: flex;
+    flex-direction: column;
+    background: #0d0d10;
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+    z-index: 30;
+  }
+
+  .tool {
+    writing-mode: vertical-rl;
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: #cfcfcf;
+    padding: 14px 0;
+    cursor: pointer;
+    font-size: 0.8rem;
+    letter-spacing: 0.02em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    transition: 0.1s;
+  }
+
+  .tool:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+  }
+
+  .tool.active {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+  }
+
+  .tool:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
   .content {
     flex: 1;
     padding: 16px;
     overflow: auto;
+    min-width: 0;
   }
 
   .hint {
@@ -275,7 +374,7 @@
   .header {
     font-size: large;
     margin-inline-start: 20px;
-    margin-top: 18px;
+    margin-top: 28px;
     margin-bottom: 16px;
     font-family: 'system-ui';
     color: #f0f0f0;

@@ -17,8 +17,8 @@
     <MessageBubble role={m.role} message={m.message} />
   {/each}
   {#if response}
-    <!-- <div class="timestamp">{responseAt ? fmt(responseAt) : null}</div> -->
-    <!-- <MessageBubble role={response.role} message={response.message} /> -->
+    <div class="timestamp">{responseAt ? fmt(responseAt) : null}</div>
+    <MessageBubble role={response.role} message={response.message} />
   {/if}
 </div>
 

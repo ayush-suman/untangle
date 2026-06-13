@@ -18,15 +18,19 @@ export async function POST({ request }) {
   const sessionID = body.sessionID;
   const sessionName = body.sessionName;
   const tag = body.tag;
+  const formatKeys = body.formatKeys;
+  const schema = body.schema;
   const session = store.find((s) => s.id == sessionID);
   if (!session) {
     store.push({
-      id: sessionID, 
+      id: sessionID,
       name: sessionName,
       tags: [{
-        tag: tag, 
-        messages: body.messages, 
-        messagesAt: new Date()
+        tag: tag,
+        messages: body.messages,
+        messagesAt: new Date(),
+        formatKeys: formatKeys,
+        schema: schema
       }]
     })
   } else {
@@ -43,7 +47,9 @@ export async function POST({ request }) {
       session.tags.push({
         tag: tag,
         messages: body.messages,
-        messagesAt: new Date()
+        messagesAt: new Date(),
+        formatKeys: formatKeys,
+        schema: schema
       })
     }
   }

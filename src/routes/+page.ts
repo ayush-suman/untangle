@@ -13,7 +13,9 @@ type LoadOk = {
       messages: ChatMessage[],
       messagesAt: Date,
       response?: ChatMessage,
-      responseAt?: Date
+      responseAt?: Date,
+      formatKeys?: Record<string, unknown>,
+      schema?: Record<string, unknown>
     }[]
   }[]
 };
