@@ -3,44 +3,29 @@
   import MessageList from "$lib/components/MessageList.svelte";
   import ErrorBanner from "$lib/components/ErrorBanner.svelte";
   import SidePanel from "$lib/components/SidePanel.svelte";
-  import type { ChatMessage } from "$lib/types";
+  import type { TagThread } from "$lib/types";
   import { goto } from "$app/navigation";
   import type { PageData } from "./$types";
-   import { onMount } from 'svelte';
+  import { onMount } from "svelte";
+
+  // A tag's data as held client-side (keyed by tag, so the tag name is dropped).
+  type Thread = Omit<TagThread, "tag">;
+  // A session as listed in the sidebar — just its tag names, not full threads.
+  type SessionSummary = { id: string; name?: string; description?: string; tags: string[] };
 
   let { data }: { data: PageData } = $props();
 
-  let current = $state<{
-    sessionID?: string,
-    tag?: string
-  }>({});
+  let current = $state<{ sessionID?: string; tag?: string }>({});
 
-  let messageCache: Record<string, Record<string, {
-    messages: ChatMessage[]
-    messagesAt: Date
-    response?: ChatMessage
-    responseAt?: Date
-    formatKeys?: Record<string, unknown>
-    schema?: Record<string, unknown>
-  } | null>> = $state({});
+  let messageCache: Record<string, Record<string, Thread | null>> = $state({});
 
-  let sessions: Array<{
-      id: string,
-      name?: string
-      description?: string
-      tags: string[]
-  }> = $state([]);
+  let sessions: SessionSummary[] = $state([]);
 
-  let currentSession = $derived(current.sessionID ? sessions.find((s) => s.id === current.sessionID) : null);
+  let currentSession = $derived(
+    current.sessionID ? sessions.find((s) => s.id === current.sessionID) : null
+  );
 
-  let currentMessages: {
-    messages: ChatMessage[],
-    messagesAt: Date,
-    response?: ChatMessage,
-    responseAt?: Date,
-    formatKeys?: Record<string, unknown>,
-    schema?: Record<string, unknown>
-  } | null = $state(null);
+  let currentMessages: Thread | null = $state(null);
 
   let activePanel: "formatKeys" | "schema" | null = $state(null);
 
@@ -51,151 +36,98 @@
     activePanel = null;
   });
 
-  // let currentSession = $derived(sessions.find((v) => v.id === current?.sessionID));
-  // let currentTag = $derived(currentSession?.tags.find((t) => t === current?.tag));
-  // let currentData = $derived(currentSession ? currentTag ? cache[currentSession.id][currentTag] : null : null);
-
   let loadError: string | null = $state(null);
-  
-  onMount(() => {
-    console.log(data.initial)
-    if (data.initial.ok) {
-      for (let session of data.initial.sessions) {
-        const s = sessions.find((s) => s.id === session.id)
-        if (s) {
-          s.tags = session.messages.map((t) => t.tag);
-        } else {
-        sessions.unshift({
-            id: session.id,
-            name: session.name,
-            description: session.description,
-            tags: session.messages.map((t) => { return t.tag })
-          });
-        }
 
-        messageCache[session.id] = {};
-        for (let tag of session.messages) {
-          messageCache[session.id][tag.tag] = {
-            messages: tag.messages,
-            messagesAt: tag.messagesAt,
-            response: tag.response,
-            responseAt: tag.responseAt,
-            formatKeys: tag.formatKeys,
-            schema: tag.schema
-          }
-        }
+  // Add the session to the sidebar, or refresh its tags if already listed.
+  function upsertSession(summary: SessionSummary) {
+    const existing = sessions.find((s) => s.id === summary.id);
+    if (existing) {
+      existing.tags = summary.tags;
+    } else {
+      sessions.unshift(summary);
+    }
+  }
+
+  onMount(() => {
+    if (!data.initial.ok) return;
+
+    for (const session of data.initial.sessions) {
+      upsertSession({ id: session.id, name: session.name, description: session.description, tags: session.messages.map((t) => t.tag) });
+
+      messageCache[session.id] = {};
+      for (const thread of session.messages) {
+        messageCache[session.id][thread.tag] = thread;
       }
-      if (data.initial.sessions.length > 0) {
-        const latestSession = data.initial.sessions[data.initial.sessions.length - 1];
-        current = { 
-          sessionID: latestSession.id,
-          tag: latestSession.messages[latestSession.messages.length - 1].tag
-        };
-      }
+    }
+
+    const latest = data.initial.sessions.at(-1);
+    if (latest) {
+      current = { sessionID: latest.id, tag: latest.messages.at(-1)?.tag };
     }
   });
 
-  $effect(() => { 
+  // Keep the URL in sync with the selection and load the selected tag's messages.
+  $effect(() => {
     loadError = null;
-    if (current.sessionID) {
-      const matchingTag = currentSession?.tags.find((t) => t === current.tag);
-      if (!matchingTag) {
-        current.tag = currentSession?.tags[currentSession.tags.length - 1];
-      }
-      if (current.tag) {
-        goto(
-          `/?sessionID=${encodeURIComponent(current.sessionID)}&tag=${encodeURIComponent(current.tag)}`,
-          { 
-            replaceState: true, 
-            noScroll: true 
-          }
-        );
-        if (!(current.sessionID in messageCache && current.tag in messageCache[current.sessionID])) {
-          loadMessages(current.sessionID, current.tag!).then(() => {
-            currentMessages = messageCache[current.sessionID!][current.tag!];
-          })
-        } else {
-          currentMessages = messageCache[current.sessionID!][current.tag!];
-          loadMessages(current.sessionID, current.tag);
-        }
-      }
-    } else {
-      goto(
-        "/",
-        { 
-          replaceState: true, 
-          noScroll: true 
-        }
-      );
-    }
-  })
 
-  async function getAllSessions() {
-    const res = await fetch("/api/sessions");
-    console.log("Getting all sessions");
-    console.log(res);
-    const json: {
-      ok: boolean,
-      sessions: {
-        id: string,
-        name?: string,
-        description?: string,
-        tags: string[]
-      }[]
-    } = await res.json();
-    console.log(json);
-    if (!json.ok) {
+    const { sessionID, tag } = current;
+    if (!sessionID) {
+      goto("/", { replaceState: true, noScroll: true });
       return;
     }
 
-    for (let session of json.sessions) {
-      const s = sessions.find((s) => s.id === session.id);
-      if (s) {
-        s.tags = session.tags;
-      } else {
-        sessions.unshift({
-          id: session.id,
-          name: session.name,
-          description: session.description,
-          tags: session.tags.map((t) => { return t })
-        });
-      }
+    // Fall back to the session's last tag if the current one isn't valid.
+    if (!currentSession?.tags.includes(tag ?? "")) {
+      current.tag = currentSession?.tags.at(-1);
+    }
+    if (!current.tag) return;
+
+    goto(`/?sessionID=${encodeURIComponent(sessionID)}&tag=${encodeURIComponent(current.tag)}`, {
+      replaceState: true,
+      noScroll: true
+    });
+
+    const cached = messageCache[sessionID]?.[current.tag];
+    if (cached !== undefined) {
+      currentMessages = cached;
+      loadMessages(sessionID, current.tag); // refresh in the background
+    } else {
+      loadMessages(sessionID, current.tag).then(() => {
+        currentMessages = messageCache[sessionID]?.[current.tag!] ?? null;
+      });
+    }
+  });
+
+  async function getAllSessions() {
+    const res = await fetch("/api/sessions");
+    const json: { ok: boolean; sessions: SessionSummary[] } = await res.json();
+    if (!json.ok) return;
+
+    for (const session of json.sessions) {
+      upsertSession(session);
     }
 
     if (!current.sessionID) {
-      if (json.sessions.length > 0) {
-        let latest = json.sessions[json.sessions.length - 1];
-        current.sessionID = latest.id;
-      }
+      current.sessionID = json.sessions.at(-1)?.id;
     }
   }
 
   async function loadMessages(sessionID: string, tag: string) {
-    const res = await fetch(`/api/sessions/${encodeURIComponent(sessionID)}/messages?tag=${encodeURIComponent(tag)}`);
+    const res = await fetch(
+      `/api/sessions/${encodeURIComponent(sessionID)}/messages?tag=${encodeURIComponent(tag)}`
+    );
     const json = await res.json();
     if (!json.ok) {
       loadError = json.error ?? "Error loading messages";
-      return
+      return;
     }
 
-    if (!(json.id in messageCache)) {
-      messageCache[json.id] = {}
-    }
+    const thread = (json.messages as TagThread[]).find((m) => m.tag === tag);
+    if (!thread) return;
 
-    const message = json.messages.find((m: { tag: string; messages: ChatMessage[], messagesAt: Date, response: ChatMessage, responseAt: Date, formatKeys?: Record<string, unknown>, schema?: Record<string, unknown>}) => m.tag === tag)
-
-    messageCache[json.id][tag] = {
-      messages: message.messages,
-      messagesAt: message.messagesAt,
-      response: message.response,
-      responseAt: message.responseAt,
-      formatKeys: message.formatKeys,
-      schema: message.schema
-    }
-    if (!current.tag) {
-      current.tag = tag;
-    }
-
+    messageCache[json.id] ??= {};
+    messageCache[json.id][tag] = thread;
+    current.tag ??= tag;
   }
 
   // Client-only polling so the UI updates when API is hit externally.
