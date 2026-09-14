@@ -5,7 +5,8 @@
   export let message: ChatMessage["message"];
 
   const isString = (x: unknown): x is string => typeof x === "string";
-  $: rendered = isString(message) ? message : JSON.stringify(message, null, 2);
+  
+  $: rendered = message.map((block) => isString(block) ? block : JSON.stringify(message, null, 2))
 
   $: align =
     role === "system" ? "center" :
@@ -15,9 +16,11 @@
 </script>
 
 <div class="row row--{align}">
-  <div class="bubble bubble--{variant}">
-    <pre>{rendered}</pre>
-  </div>
+  {#each rendered as block}
+    <div class="bubble bubble--{variant}">
+      <pre>{block}</pre>
+    </div>  
+  {/each}
 </div>
 
 <style>
@@ -41,7 +44,8 @@
 
   pre {
     margin: 0;
-    white-space: pre-wrap;
+    white-space: pre-line;
+    /* white-space: pre-wrap; */
     word-break: break-word;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     font-size: 13px;

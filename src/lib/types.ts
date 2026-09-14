@@ -1,5 +1,5 @@
 export type Role = "system" | "user" | "assistant";
-export type MessageContent = string | Record<string, unknown>;
+export type MessageContent = Array<string | Record<string, unknown>>;
 
 export type ChatMessage = {
   role: Role;
