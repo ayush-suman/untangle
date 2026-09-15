@@ -6,7 +6,7 @@
 
   const isString = (x: unknown): x is string => typeof x === "string";
   
-  $: rendered = message.map((block) => isString(block) ? block : JSON.stringify(message, null, 2))
+  $: rendered = message.map((block) => isString(block) ? block : JSON.stringify(block, null, 2))
 
   $: align =
     role === "system" ? "center" :
@@ -24,10 +24,10 @@
 </div>
 
 <style>
-  .row { display: flex; width: 100%; }
-  .row--left { justify-content: flex-start; }
-  .row--right { justify-content: flex-end; }
-  .row--center { justify-content: center; }
+  .row { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+  .row--left { align-items: flex-start; }
+  .row--right { align-items: flex-end; }
+  .row--center { align-items: center; }
 
   .bubble {
     max-width: min(720px, 92%);
@@ -44,8 +44,7 @@
 
   pre {
     margin: 0;
-    white-space: pre-line;
-    /* white-space: pre-wrap; */
+    white-space: pre-wrap;
     word-break: break-word;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
     font-size: 13px;
