@@ -1,6 +1,18 @@
 import { store } from "$lib/store";
 import { json } from "@sveltejs/kit";
-import type { ChatThread } from "$lib/types";
+import type { ChatThread, ChatMessage } from "$lib/types";
+
+/**
+ * Normalise an assistant response into the viewer's ChatMessage shape ({ role, message }).
+ * Accepts either `message` (array) or `content` (array, e.g. a structured block or tool calls)
+ * so the response renders under its own tag regardless of the interceptor's payload key.
+ */
+function toChatMessage(response: unknown): ChatMessage | undefined {
+  if (!response || typeof response !== "object") return response as undefined;
+  const r = response as { role?: ChatMessage["role"]; message?: unknown; content?: unknown };
+  const raw = Array.isArray(r.message) ? r.message : Array.isArray(r.content) ? r.content : [];
+  return { role: r.role ?? "assistant", message: raw as ChatMessage["message"] };
+}
 
 /**
  * POST /api/messages
@@ -75,10 +87,10 @@ export async function PATCH({ request }) {
 
   if (errors !== undefined) {
     if (thread.validatorErrors === undefined) thread.validatorErrors = [];
-    thread.validatorErrors.push({ validator: validator, response: response, errors: errors, createdAt: new Date() });
+    thread.validatorErrors.push({ validator: validator, response: toChatMessage(response)!, errors: errors, createdAt: new Date() });
     return json({ ok: true, message: "Validation Error added" });
   } else {
-    thread.response = response;
+    thread.response = toChatMessage(response);
     thread.responseAt = new Date();
     return json({ ok: true, message: "Response added" });
   }
