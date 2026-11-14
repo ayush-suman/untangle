@@ -141,7 +141,19 @@
   const POLL_MS = 1500;
 
   $effect(() => {
-    const timer = setInterval(getAllSessions, POLL_MS);
+    const timer = setInterval(async () => {
+      await getAllSessions();
+      // Also re-load the open thread so its messages/response update live,
+      // not only after a manual refresh.
+      const sessionID = current.sessionID;
+      const promptID = current.promptID;
+      if (sessionID && promptID) {
+        await loadMessages(sessionID, promptID);
+        if (current.sessionID === sessionID && current.promptID === promptID) {
+          currentThread = untrack(() => messageCache[sessionID]?.[promptID]) ?? currentThread;
+        }
+      }
+    }, POLL_MS);
     return () => clearInterval(timer);
   });
 </script>
